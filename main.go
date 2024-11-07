@@ -1,23 +1,25 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/tidwall/gjson"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 )
 
 // Map from the application to the cron schedule it should run on
-var runningApplications = make(map[string]string)
-
 type Configuration struct {
-	shouldRunApps  []string
-	availableFiles []string
+	shouldRunApps        []string
+	availableFiles       []string
+	availablePythonFiles []string
 }
 
-func initialize() Configuration {
+func downloadConfig() Configuration {
 	err := os.RemoveAll("tmp/")
 	if err != nil {
 		fmt.Println("Error removing /tmp/:", err)
@@ -68,9 +70,17 @@ func initialize() Configuration {
 		}
 	}
 
+	availablePythonFiles := make([]string, 0)
+	for _, file := range strPaths {
+		if strings.HasSuffix(file, ".py") {
+			availablePythonFiles = append(availablePythonFiles, file)
+		}
+	}
+
 	return Configuration{
-		shouldRunApps:  shouldRunApps,
-		availableFiles: strPaths,
+		shouldRunApps:        shouldRunApps,
+		availableFiles:       strPaths,
+		availablePythonFiles: availablePythonFiles,
 	}
 }
 
@@ -100,19 +110,64 @@ func downloadApplicationFiles(cfg Configuration, app string) {
 			panic(err)
 		}
 
-		err = os.WriteFile("tmp/"+file, body, os.FileMode(0644))
+		err = os.WriteFile("tmp/"+file, body, os.FileMode(0777))
 		if err != nil {
 			fmt.Println("Error writing the file:", err)
 			panic(err)
 		}
 	}
-
 }
 
-func main() {
-	cfg := initialize()
-	fmt.Println(cfg)
-	for _, app := range cfg.shouldRunApps {
-		downloadApplicationFiles(cfg, app)
+func pythonCommand(app string) exec.Cmd {
+	if os.Getenv("RAPIDPY_ENV") == "PROD" {
+		return *exec.Command("python3", fmt.Sprintf("./tmp/%s.py", app))
+	} else {
+		return *exec.Command(
+			"bash",
+			"-c", fmt.Sprintf("source ./venv/bin/activate && python3 ./tmp/%s", app))
 	}
+}
+
+func runCommand(cmd exec.Cmd) error {
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+		return err
+	}
+
+	return nil
+}
+
+var appChannels = make(map[string]chan string)
+
+func main() {
+	for {
+		cfg := downloadConfig()
+		fmt.Println(cfg)
+
+		for _, app := range cfg.availablePythonFiles {
+			if _, ok := appChannels[app]; ok {
+				continue
+			} else {
+				fmt.Println("Starting application:", app)
+				downloadApplicationFiles(cfg, app)
+
+				go func() {
+					appChannels[app] = make(chan string)
+					_, ok := appChannels[app]
+					for ok {
+						cmd := pythonCommand(app)
+						runCommand(cmd)
+					}
+				}()
+			}
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+
 }
