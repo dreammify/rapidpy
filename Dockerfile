@@ -5,4 +5,6 @@ COPY . /app
 WORKDIR /app
 RUN pip install requests
 RUN pip install flask
+EXPOSE 45050-45100
+RUN go mod tidy
 CMD ["go", "run", "main.go"]
