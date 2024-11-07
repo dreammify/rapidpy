@@ -109,12 +109,25 @@ func downloadApplicationFiles(cfg Configuration, app string) {
 			fmt.Println("Error writing the file:", err)
 			panic(err)
 		}
+
+		fmt.Println("Downloaded file:", file)
+	}
+}
+
+func printDir() {
+	entries, err := os.ReadDir("./tmp/")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, e := range entries {
+		fmt.Println(e.Name())
 	}
 }
 
 func pythonCommand(app string) exec.Cmd {
 	if os.Getenv("RAPIDPY_ENV") == "PROD" {
-		return *exec.Command("python3", fmt.Sprintf("./tmp/%s.py", app))
+		return *exec.Command("python3", fmt.Sprintf("./tmp/%s", app))
 	} else {
 		return *exec.Command(
 			"bash",
@@ -122,7 +135,7 @@ func pythonCommand(app string) exec.Cmd {
 	}
 }
 
-func runCommand(cmd exec.Cmd) (*os.Process, error) {
+func runCommand(cmd exec.Cmd) (*exec.Cmd, error) {
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -133,7 +146,7 @@ func runCommand(cmd exec.Cmd) (*os.Process, error) {
 		return nil, err
 	}
 
-	return cmd.Process, nil
+	return &cmd, nil
 }
 
 var appShouldRun = make(map[string]bool)
@@ -171,7 +184,7 @@ func appEventLoop(app string, appShouldRun map[string]bool) {
 			time.Sleep(1 * time.Second)
 		}
 
-		err = pid.Kill()
+		err = pid.Process.Kill()
 		if err != nil {
 			fmt.Println("Error stopping the application:", err)
 		}
@@ -186,7 +199,7 @@ func appEventLoop(app string, appShouldRun map[string]bool) {
 			}
 
 			time.Sleep(time.Duration(runConfig) * time.Second)
-			err = pid.Kill()
+			err = pid.Process.Kill()
 			if err != nil {
 				fmt.Println("Error stopping the application:", err)
 				return // Application was stopped
@@ -219,6 +232,6 @@ func main() {
 			}
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(10 * time.Minute)
 	}
 }
