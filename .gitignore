@@ -29,3 +29,6 @@ tmp
 tmp/**
 scratch
 scratch/**
+
+# idea
+.idea/**
