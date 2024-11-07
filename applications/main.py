@@ -4,9 +4,6 @@ import flask
 from io import BytesIO
 
 if __name__ == '__main__':
-    requests.get('http://localhost:3001')
-    exit()
-
     # Url for getting a random cat picture
     cataas_url = 'https://cataas.com/cat'
     # Fetch random cat picture
