@@ -232,6 +232,6 @@ func main() {
 			}
 		}
 
-		time.Sleep(10 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
