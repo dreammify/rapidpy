@@ -179,13 +179,18 @@ func appEventLoop(app string, appShouldRun map[string]bool) {
 		fmt.Println("Running recurrent application: ", app, "every", runConfig, "seconds")
 		for appShouldRun[app] {
 			cmd := pythonCommand(app)
-			_, err := runCommand(cmd)
+			pid, err := runCommand(cmd)
 			if err != nil {
 				fmt.Println("Error starting the application:", err)
 				delete(appShouldRun, app)
 			}
 
 			time.Sleep(time.Duration(runConfig) * time.Second)
+			err = pid.Kill()
+			if err != nil {
+				fmt.Println("Error stopping the application:", err)
+				return // Application was stopped
+			}
 		}
 	}
 
